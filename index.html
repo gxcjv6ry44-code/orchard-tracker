@@ -348,26 +348,27 @@ tr:hover td { background: #fafafa; }
 // ═══════════════════════════════════════
 const SB_URL = 'https://tfkdkekvtuqepjqsgjoc.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRma2RrZWt2dHVxZXBqcXNnam9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjMyMTgsImV4cCI6MjA5MTgzOTIxOH0.sjrwNJdOCErT9PzjFUGR02Z2tZqQ6V3q7Vsz7fWGLRU';
-const SB_HDR = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+const SB_GET_HDR  = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY };
+const SB_POST_HDR = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
 
 async function sbGet(table, params) {
   const qs = params ? '?' + new URLSearchParams(params) : '';
-  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { headers: { ...SB_HDR, 'Prefer': 'return=representation' } });
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { headers: SB_GET_HDR });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
 async function sbPost(table, body) {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: 'POST', headers: SB_HDR, body: JSON.stringify(body) });
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: 'POST', headers: SB_POST_HDR, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(await r.text());
 }
 async function sbPatch(table, match, body) {
   const qs = '?' + new URLSearchParams(match);
-  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { method: 'PATCH', headers: SB_HDR, body: JSON.stringify(body) });
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { method: 'PATCH', headers: SB_POST_HDR, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(await r.text());
 }
 async function sbDelete(table, match) {
   const qs = '?' + new URLSearchParams(match);
-  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { method: 'DELETE', headers: SB_HDR });
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { method: 'DELETE', headers: SB_GET_HDR });
   if (!r.ok) throw new Error(await r.text());
 }
 
