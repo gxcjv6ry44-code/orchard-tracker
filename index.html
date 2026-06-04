@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>North Ogden Orchard Tracker</title>
+<style>
+:root { color-scheme: light; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; min-height: 100vh; }
+
+/* ── Nav ── */
+nav { background: #1e3a2f; color: white; padding: 0 16px; display: flex; align-items: center; gap: 0; height: 52px; position: sticky; top: 0; z-index: 100; }
+nav h1 { font-size: 15px; font-weight: 700; margin-right: 20px; white-space: nowrap; }
+.nav-btn { padding: 6px 13px; border: none; background: transparent; color: rgba(255,255,255,0.65); font-size: 13px; cursor: pointer; height: 52px; border-bottom: 3px solid transparent; transition: color 0.15s, border-color 0.15s; white-space: nowrap; }
+.nav-btn:hover { color: white; }
+.nav-btn.active { color: white; border-bottom-color: #4ade80; }
+.nav-spacer { flex: 1; }
+.sync-indicator { font-size: 11px; color: rgba(255,255,255,0.5); display: flex; align-items: center; gap: 5px; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; }
+.sync-dot.syncing { background: #fbbf24; animation: pulse 1s infinite; }
+.sync-dot.error { background: #ef4444; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── Pages ── */
+.page { display: none; padding: 20px 16px; max-width: 960px; margin: 0 auto; }
+.page.active { display: block; }
+
+/* ── Cards ── */
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+.card h2 { font-size: 14px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+
+/* ── Forms ── */
+label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+select, input[type=text], input[type=date], textarea {
+  width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 7px;
+  font-size: 14px; color: #1e293b; background: white; outline: none; transition: border-color 0.15s;
+}
+select:focus, input:focus, textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+select:disabled { background: #f8fafc; color: #94a3b8; }
+textarea { resize: vertical; min-height: 110px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.form-group { margin-bottom: 14px; }
+
+/* ── Buttons ── */
+.btn { padding: 9px 18px; border-radius: 7px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s, opacity 0.15s; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: #1e3a2f; color: white; }
+.btn-primary:hover:not(:disabled) { background: #2d5243; }
+.btn-green { background: #16a34a; color: white; }
+.btn-green:hover:not(:disabled) { background: #15803d; }
+.btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
+.btn-outline:hover:not(:disabled) { background: #f9fafb; }
+.btn-danger { background: white; color: #dc2626; border: 1px solid #fecaca; }
+.btn-danger:hover:not(:disabled) { background: #fef2f2; }
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+
+/* ── Row checklist ── */
+#row-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 7px; margin: 12px 0; }
+.row-check input[type=checkbox] { display: none; }
+.row-label { display: block; width: 100%; padding: 8px 4px; border: 1.5px solid #cbd5e1; border-radius: 7px; text-align: center; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #475569; transition: all 0.12s; user-select: none; }
+.row-label:hover { border-color: #94a3b8; background: #f8fafc; }
+.row-check input:checked + .row-label { background: #dcfce7; border-color: #16a34a; color: #15803d; }
+.row-check.act-fertilized input:checked + .row-label { background: #fef9c3; border-color: #ca8a04; color: #854d0e; }
+.row-check.act-watered    input:checked + .row-label { background: #dbeafe; border-color: #2563eb; color: #1e40af; }
+.row-check.act-pruned     input:checked + .row-label { background: #dcfce7; border-color: #16a34a; color: #14532d; }
+.row-check.act-thinned    input:checked + .row-label { background: #f3e8ff; border-color: #7c3aed; color: #581c87; }
+.row-check.act-sprayed    input:checked + .row-label { background: #ffedd5; border-color: #c2410c; color: #7c2d12; }
+.row-check.act-harvested  input:checked + .row-label { background: #fef3c7; border-color: #d97706; color: #713f12; }
+.check-actions { display: flex; gap: 8px; margin-bottom: 4px; }
+#check-summary { font-size: 13px; color: #64748b; padding: 8px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 14px; }
+#check-summary strong { color: #1e293b; }
+
+/* ── History table ── */
+.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.filter-bar select, .filter-bar input { width: auto; flex: 1; min-width: 110px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 9px 12px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafafa; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.badge-fertilized { background: #fef9c3; color: #854d0e; }
+.badge-watered    { background: #dbeafe; color: #1e40af; }
+.badge-pruned     { background: #dcfce7; color: #14532d; }
+.badge-thinned    { background: #f3e8ff; color: #581c87; }
+.badge-sprayed    { background: #ffedd5; color: #7c2d12; }
+.badge-harvested  { background: #fef3c7; color: #713f12; }
+.rows-cell { font-family: monospace; font-size: 12px; color: #475569; }
+.del-btn { color: #cbd5e1; background: none; border: none; cursor: pointer; font-size: 15px; }
+.del-btn:hover { color: #ef4444; }
+#no-history { text-align: center; padding: 32px; color: #94a3b8; font-size: 14px; }
+
+/* ── Visual Map ── */
+.map-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.view-toggle { display: flex; border: 1px solid #e2e8f0; border-radius: 7px; overflow: hidden; }
+.view-toggle button { padding: 6px 14px; border: none; background: white; font-size: 13px; cursor: pointer; color: #64748b; transition: background 0.15s; }
+.view-toggle button.active { background: #1e3a2f; color: white; }
+.act-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.act-pill { padding: 4px 11px; border-radius: 12px; border: 1.5px solid #e2e8f0; background: white; font-size: 12px; font-weight: 600; cursor: pointer; color: #64748b; transition: all 0.12s; }
+.act-pill.active { color: white; border-color: transparent; }
+.act-pill.active[data-act="fertilized"] { background: #ca8a04; }
+.act-pill.active[data-act="watered"]    { background: #2563eb; }
+.act-pill.active[data-act="pruned"]     { background: #16a34a; }
+.act-pill.active[data-act="thinned"]    { background: #7c3aed; }
+.act-pill.active[data-act="sprayed"]    { background: #c2410c; }
+.act-pill.active[data-act="harvested"]  { background: #d97706; }
+
+/* Grid heat map */
+#heatmap-view { overflow-x: auto; }
+.heatmap-section { margin-bottom: 20px; }
+.heatmap-section h3 { font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.heatmap-pct { font-size: 11px; font-weight: 600; color: #94a3b8; }
+.row-cells { display: flex; flex-wrap: wrap; gap: 4px; }
+.row-cell { width: 42px; height: 42px; border-radius: 5px; border: 1.5px solid #e2e8f0; background: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #94a3b8; cursor: default; transition: transform 0.1s; position: relative; gap: 1px; }
+.row-cell:hover { transform: scale(1.15); z-index: 10; }
+.row-cell.done { border-color: transparent; color: white; }
+.row-cell .rc-count { font-size: 9px; font-weight: 800; opacity: 0.85; line-height: 1; }
+.row-cell.done[data-act="fertilized"] { background: #ca8a04; }
+.row-cell.done[data-act="watered"]    { background: #2563eb; }
+.row-cell.done[data-act="pruned"]     { background: #16a34a; }
+.row-cell.done[data-act="thinned"]    { background: #7c3aed; }
+.row-cell.done[data-act="sprayed"]    { background: #c2410c; }
+.row-cell.done[data-act="harvested"]  { background: #d97706; }
+.row-cell-tip { display: none; position: fixed; z-index: 999; background: #1e293b; color: white; font-size: 12px; padding: 8px 12px; border-radius: 7px; pointer-events: none; max-width: 260px; line-height: 1.6; }
+
+/* Photo overlay */
+#photo-view { position: relative; }
+#photo-canvas-wrap { position: relative; display: inline-block; max-width: 100%; }
+#photo-canvas-wrap img { max-width: 100%; display: block; border-radius: 8px; }
+#overlay-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 8px; pointer-events: none; }
+.photo-drop { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; color: #94a3b8; font-size: 13px; }
+.photo-drop:hover { border-color: #94a3b8; background: #f8fafc; }
+
+/* ── Summary progress bars ── */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.summary-card { background: white; border: 1px solid #e2e8f0; border-radius: 9px; padding: 14px; }
+.summary-card h3 { font-size: 15px; font-weight: 800; color: #1e3a2f; margin-bottom: 10px; }
+.progress-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.progress-label { font-size: 11px; color: #64748b; width: 72px; flex-shrink: 0; }
+.progress-bar-wrap { flex: 1; background: #f1f5f9; border-radius: 4px; height: 8px; overflow: hidden; }
+.progress-bar { height: 100%; border-radius: 4px; }
+.progress-pct { font-size: 11px; font-weight: 700; color: #475569; width: 32px; text-align: right; }
+.bar-fertilized { background: #ca8a04; } .bar-watered { background: #2563eb; } .bar-pruned { background: #16a34a; }
+.bar-thinned { background: #7c3aed; } .bar-sprayed { background: #c2410c; } .bar-harvested { background: #d97706; }
+
+/* ── Setup ── */
+.setup-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; }
+.setup-row .sec-name { font-weight: 800; font-size: 16px; color: #1e3a2f; width: 36px; }
+.setup-row input[type=number] { width: 80px; padding: 7px 10px; text-align: center; }
+.setup-row input[type=text]   { flex: 1; }
+.setup-del { color: #cbd5e1; background: none; border: none; cursor: pointer; font-size: 18px; }
+.setup-del:hover { color: #ef4444; }
+
+/* ── Autocomplete ── */
+.ac-item { padding: 9px 12px; font-size: 14px; color: #1e293b; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.ac-active { background: #f0f9ff; color: #0369a1; }
+
+/* ── Misc ── */
+.warning-box { padding: 11px 14px; background: #fefce8; border: 1px solid #fde68a; border-radius: 7px; font-size: 13px; color: #854d0e; margin-bottom: 12px; }
+.info-box { padding: 11px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 7px; font-size: 13px; color: #0369a1; margin-bottom: 12px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+@media (max-width: 600px) {
+  .form-row, .form-row.three { grid-template-columns: 1fr; }
+  #row-grid { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>🌿 Orchard Tracker</h1>
+  <button class="nav-btn active" onclick="showPage('log',this)">Log Activity</button>
+  <button class="nav-btn" onclick="showPage('map',this)">📊 Map</button>
+  <button class="nav-btn" onclick="showPage('history',this)">History</button>
+  <div class="nav-spacer"></div>
+  <div class="sync-indicator"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Connected</span></div>
+  <button class="nav-btn" onclick="showPage('setup',this)" style="margin-left:8px">⚙ Setup</button>
+</nav>
+
+<!-- ═══════════ LOG PAGE ═══════════ -->
+<div class="page active" id="page-log">
+  <div class="card">
+    <h2>Log an Activity</h2>
+
+    <div id="no-sections-warning" style="display:none" class="warning-box">
+      ⚠️ No sections configured yet. Go to <strong style="cursor:pointer;text-decoration:underline" onclick="showPage('setup',document.querySelector('nav .nav-btn:last-child'))">Setup</strong> to add orchard sections.
+    </div>
+
+    <div class="form-row three">
+      <div class="form-group">
+        <label>Activity</label>
+        <select id="log-activity" onchange="updateRowColors()">
+          <option value="fertilized">🌱 Fertilized</option>
+          <option value="watered">💧 Watered</option>
+          <option value="pruned">✂️ Pruned</option>
+          <option value="thinned">🍑 Thinned</option>
+          <option value="sprayed">🧴 Sprayed</option>
+          <option value="harvested">🍎 Harvested</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Section</label>
+        <select id="log-section" onchange="buildRowGrid()">
+          <option value="">— choose —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="log-date">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="position:relative">
+        <label>Done by</label>
+        <input type="text" id="log-person" placeholder="Type to search volunteers…" autocomplete="off"
+          oninput="acInput(this)" onkeydown="acKey(event)" onblur="setTimeout(acHide,150)">
+        <div id="ac-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:500;background:white;border:1px solid #cbd5e1;border-radius:0 0 7px 7px;box-shadow:0 4px 12px rgba(0,0,0,0.12);max-height:200px;overflow-y:auto;"></div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="log-notes" placeholder="Product used, rate, weather, etc."></textarea>
+      </div>
+    </div>
+
+    <div id="row-section" style="display:none">
+      <label>Select rows completed</label>
+      <div class="check-actions">
+        <button class="btn btn-outline btn-sm" onclick="selectAllRows()">Select All</button>
+        <button class="btn btn-outline btn-sm" onclick="clearAllRows()">Clear All</button>
+      </div>
+      <div id="row-grid"></div>
+      <div id="check-summary">No rows selected.</div>
+    </div>
+    <div id="no-section-msg" style="padding:12px 0; color:#94a3b8; font-size:13px;">Choose a section above to see its rows.</div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+      <button class="btn btn-outline" onclick="resetForm()">Clear</button>
+      <button class="btn btn-green" id="save-btn" onclick="saveLog()" disabled>💾 Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MAP PAGE ═══════════ -->
+<div class="page" id="page-map">
+  <div class="card">
+    <h2>Orchard Map</h2>
+    <div class="map-toolbar">
+      <div class="view-toggle">
+        <button class="active" id="btn-grid-view" onclick="switchMapView('grid',this)">Grid View</button>
+        <button id="btn-photo-view" onclick="switchMapView('photo',this)">Photo View</button>
+      </div>
+      <select id="map-preset" onchange="applyDatePreset(this.value)" style="width:auto;min-width:120px">
+        <option value="30">Last 30 days</option>
+        <option value="7">Last 7 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="365">This year</option>
+        <option value="all">All time</option>
+        <option value="custom">Custom range…</option>
+      </select>
+      <div id="custom-range" style="display:none;gap:6px;align-items:center">
+        <input type="date" id="map-from" onchange="renderMap()" style="width:auto">
+        <span style="color:#94a3b8;font-size:13px">to</span>
+        <input type="date" id="map-to" onchange="renderMap()" style="width:auto">
+      </div>
+      <div class="act-filter" id="act-filter"></div>
+    </div>
+
+    <div id="heatmap-view"></div>
+
+    <div id="photo-view" style="display:none">
+      <div id="photo-canvas-wrap" style="display:none">
+        <img id="overlay-img" src="" alt="Orchard">
+        <canvas id="overlay-canvas"></canvas>
+      </div>
+      <div id="photo-drop" class="photo-drop" onclick="document.getElementById('photo-file').click()">
+        📂 Click to load orchard photo (or drag &amp; drop)<br>
+        <span style="font-size:11px;color:#cbd5e1">Saved in this browser for future visits</span>
+      </div>
+      <input type="file" id="photo-file" accept="image/*" style="display:none" onchange="loadPhoto(this.files[0])">
+    </div>
+
+    <div id="map-legend" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:#64748b"></div>
+  </div>
+</div>
+
+<!-- ═══════════ HISTORY PAGE ═══════════ -->
+<div class="page" id="page-history">
+  <div class="card">
+    <h2>Activity History</h2>
+    <div class="filter-bar">
+      <select id="filter-section" onchange="renderHistory()"><option value="">All sections</option></select>
+      <select id="filter-activity" onchange="renderHistory()">
+        <option value="">All activities</option>
+        <option value="fertilized">🌱 Fertilized</option>
+        <option value="watered">💧 Watered</option>
+        <option value="pruned">✂️ Pruned</option>
+        <option value="thinned">🍑 Thinned</option>
+        <option value="sprayed">🧴 Sprayed</option>
+        <option value="harvested">🍎 Harvested</option>
+      </select>
+      <input type="text" id="filter-person" placeholder="Filter by person…" oninput="renderHistory()" style="max-width:160px">
+      <button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇ CSV</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Activity</th><th>Section</th><th>Rows</th><th>Person</th><th>Notes</th><th></th>
+        </tr></thead>
+        <tbody id="history-body"></tbody>
+      </table>
+      <div id="no-history" style="display:none">No entries yet.</div>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:#94a3b8" id="history-count"></div>
+  </div>
+</div>
+
+<!-- ═══════════ SETUP PAGE ═══════════ -->
+<div class="page" id="page-setup">
+  <div class="card">
+    <h2>Orchard Sections</h2>
+    <p style="font-size:13px;color:#64748b;margin-bottom:14px;line-height:1.5">Add each section with its letter and number of rows. Changes save to the shared database.</p>
+    <div id="sections-list"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <input type="text" id="new-sec-name" placeholder="Letter (e.g. A)" maxlength="4" style="max-width:130px">
+      <input type="number" id="new-sec-rows" placeholder="# rows" min="1" max="500" style="max-width:100px">
+      <button class="btn btn-primary" onclick="addSection()">+ Add Section</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Data</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<div id="row-cell-tip" class="row-cell-tip"></div>
+
+<script>
+// ═══════════════════════════════════════
+// Supabase config
+// ═══════════════════════════════════════
+const SB_URL = 'https://tfkdkekvtuqepjqsgjoc.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRma2RrZWt2dHVxZXBqcXNnam9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjMyMTgsImV4cCI6MjA5MTgzOTIxOH0.sjrwNJdOCErT9PzjFUGR02Z2tZqQ6V3q7Vsz7fWGLRU';
+const SB_HDR = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+
+async function sbGet(table, params) {
+  const qs = params ? '?' + new URLSearchParams(params) : '';
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { headers: { ...SB_HDR, 'Prefer': 'return=representation' } });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function sbPost(table, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: 'POST', headers: SB_HDR, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(await r.text());
+}
+async function sbPatch(table, match, body) {
+  const qs = '?' + new URLSearchParams(match);
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { method: 'PATCH', headers: SB_HDR, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(await r.text());
+}
+async function sbDelete(table, match) {
+  const qs = '?' + new URLSearchParams(match);
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${qs}`, { method: 'DELETE', headers: SB_HDR });
+  if (!r.ok) throw new Error(await r.text());
+}
+
+// ═══════════════════════════════════════
+// State
+// ═══════════════════════════════════════
+const ACTIVITIES = ['fertilized','watered','pruned','thinned','sprayed','harvested'];
+const ACT_LABELS  = { fertilized:'🌱 Fertilized', watered:'💧 Watered', pruned:'✂️ Pruned', thinned:'🍑 Thinned', sprayed:'🧴 Sprayed', harvested:'🍎 Harvested' };
+const ACT_COLORS  = { fertilized:'#ca8a04', watered:'#2563eb', pruned:'#16a34a', thinned:'#7c3aed', sprayed:'#c2410c', harvested:'#d97706' };
+
+let sections = [];   // [{id, name, row_count, sort_order}]
+let logs     = [];   // [{id, date, activity, section, rows, person, notes, season}]
+let mapAct   = 'fertilized';
+let mapView  = 'grid';
+let mapFrom  = '';   // YYYY-MM-DD
+let mapTo    = '';
+let photoDataUrl = localStorage.getItem('orchard-photo') || null;
+
+// ═══════════════════════════════════════
+// Sync indicator
+// ═══════════════════════════════════════
+function setSyncState(state, msg) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+  lbl.textContent = msg || (state === 'syncing' ? 'Syncing…' : state === 'error' ? 'Offline' : 'Connected');
+}
+
+// ═══════════════════════════════════════
+// Load data
+// ═══════════════════════════════════════
+async function loadAll() {
+  setSyncState('syncing');
+  try {
+    [sections, logs] = await Promise.all([
+      sbGet('orchard_sections', { order: 'sort_order.asc,name.asc' }),
+      sbGet('orchard_logs',     { order: 'date.desc,logged_at.desc', limit: 1000 })
+    ]);
+    setSyncState('ok');
+  } catch(e) {
+    setSyncState('error', 'Offline');
+    console.error(e);
+  }
+  populateLogSelects();
+  applyDatePreset('30');
+  buildActFilter();
+}
+
+// ═══════════════════════════════════════
+// Navigation
+// ═══════════════════════════════════════
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (id === 'history') { populateFilterSelects(); renderHistory(); }
+  if (id === 'map')     { buildActFilter(); renderMap(); }
+  if (id === 'setup')   { renderSetupList(); }
+  if (id === 'log')     { populateLogSelects(); }
+}
+
+// ═══════════════════════════════════════
+// Log page
+// ═══════════════════════════════════════
+function populateLogSelects() {
+  const sel  = document.getElementById('log-section');
+  const warn = document.getElementById('no-sections-warning');
+  const cur  = sel.value;
+  sel.innerHTML = '<option value="">— choose —</option>';
+  if (sections.length === 0) { warn.style.display = 'block'; sel.disabled = true; }
+  else {
+    warn.style.display = 'none'; sel.disabled = false;
+    sections.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.name; o.textContent = `Section ${s.name}  (${s.row_count} rows)`;
+      sel.appendChild(o);
+    });
+    if (cur) sel.value = cur;
+  }
+  buildRowGrid();
+}
+
+function buildRowGrid() {
+  const sec  = document.getElementById('log-section').value;
+  const grid = document.getElementById('row-grid');
+  const rs   = document.getElementById('row-section');
+  const nm   = document.getElementById('no-section-msg');
+  const btn  = document.getElementById('save-btn');
+  grid.innerHTML = '';
+  if (!sec) { rs.style.display = 'none'; nm.style.display = 'block'; btn.disabled = true; return; }
+  const section = sections.find(s => s.name === sec);
+  if (!section || section.row_count === 0) { rs.style.display = 'none'; nm.style.display = 'block'; btn.disabled = true; return; }
+  rs.style.display = 'block'; nm.style.display = 'none';
+  const act = document.getElementById('log-activity').value;
+  for (let r = 1; r <= section.row_count; r++) {
+    const id = `row-${r}`;
+    const wrap = document.createElement('div');
+    wrap.className = `row-check act-${act}`;
+    wrap.innerHTML = `<input type="checkbox" id="${id}" value="${r}" onchange="updateCheckSummary()"><label class="row-label" for="${id}">${sec}-${r}</label>`;
+    grid.appendChild(wrap);
+  }
+  updateCheckSummary();
+}
+
+function updateRowColors() {
+  const act = document.getElementById('log-activity').value;
+  document.querySelectorAll('.row-check').forEach(w => w.className = `row-check act-${act}`);
+}
+
+function selectAllRows() { document.querySelectorAll('#row-grid input').forEach(c => c.checked = true); updateCheckSummary(); }
+function clearAllRows()  { document.querySelectorAll('#row-grid input').forEach(c => c.checked = false); updateCheckSummary(); }
+
+function updateCheckSummary() {
+  const checked = [...document.querySelectorAll('#row-grid input:checked')];
+  const sec = document.getElementById('log-section').value;
+  const section = sections.find(s => s.name === sec);
+  const btn = document.getElementById('save-btn');
+  if (checked.length === 0) {
+    document.getElementById('check-summary').innerHTML = 'No rows selected.';
+    btn.disabled = true;
+  } else {
+    const pct = section ? Math.round(checked.length / section.row_count * 100) : '?';
+    document.getElementById('check-summary').innerHTML = `<strong>${checked.length}</strong> row${checked.length>1?'s':''} selected (${pct}% of section)`;
+    btn.disabled = false;
+  }
+}
+
+async function saveLog() {
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const activity = document.getElementById('log-activity').value;
+  const section  = document.getElementById('log-section').value;
+  const date     = document.getElementById('log-date').value;
+  const person   = document.getElementById('log-person').value.trim();
+  const notes    = document.getElementById('log-notes').value.trim();
+  const rows     = [...document.querySelectorAll('#row-grid input:checked')].map(c => parseInt(c.value));
+  const season = date.slice(0,4);   // kept in DB for optional filtering
+  setSyncState('syncing');
+  try {
+    await sbPost('orchard_logs', { date, activity, section, rows, person, notes, season });
+    logs = await sbGet('orchard_logs', { order: 'date.desc,logged_at.desc', limit: 1000 });
+    setSyncState('ok');
+    showToast(`✅ Saved — ${rows.length} rows in Section ${section}`);
+    resetForm();
+  } catch(e) {
+    setSyncState('error', 'Save failed');
+    showToast('❌ Save failed — check connection', true);
+    btn.disabled = false;
+  }
+  btn.textContent = '💾 Save Entry';
+}
+
+function resetForm() {
+  document.getElementById('log-section').value = '';
+  document.getElementById('log-person').value = '';
+  document.getElementById('log-notes').value = '';
+  document.getElementById('log-date').value = localToday();
+  buildRowGrid();
+}
+
+// ═══════════════════════════════════════
+// Map page
+// ═══════════════════════════════════════
+function applyDatePreset(val) {
+  const cr = document.getElementById('custom-range');
+  if (val === 'custom') {
+    cr.style.display = 'flex';
+    mapFrom = document.getElementById('map-from').value || localToday();
+    mapTo   = document.getElementById('map-to').value   || localToday();
+  } else {
+    cr.style.display = 'none';
+    const today = localToday();
+    mapTo = today;
+    if (val === 'all') { mapFrom = '2000-01-01'; }
+    else if (val === '365') { mapFrom = today.slice(0,4) + '-01-01'; }
+    else { const d = new Date(); d.setDate(d.getDate() - parseInt(val)); mapFrom = d.toISOString().slice(0,10); }
+  }
+  renderMap();
+}
+
+function buildActFilter() {
+  const wrap = document.getElementById('act-filter');
+  if (wrap.children.length) return; // already built
+  wrap.innerHTML = ACTIVITIES.map(a =>
+    `<span class="act-pill ${a===mapAct?'active':''}" data-act="${a}" onclick="setMapAct('${a}',this)">${ACT_LABELS[a]}</span>`
+  ).join('');
+}
+
+function setMapAct(act, el) {
+  mapAct = act;
+  document.querySelectorAll('.act-pill').forEach(p => p.classList.toggle('active', p.dataset.act === act));
+  renderMap();
+}
+
+function switchMapView(v, btn) {
+  mapView = v;
+  document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('heatmap-view').style.display = v === 'grid'  ? '' : 'none';
+  document.getElementById('photo-view').style.display   = v === 'photo' ? '' : 'none';
+  renderMap();
+}
+
+function renderMap() {
+  const preset = document.getElementById('map-preset').value;
+  if (preset === 'custom') {
+    mapFrom = document.getElementById('map-from').value || mapFrom;
+    mapTo   = document.getElementById('map-to').value   || mapTo;
+  }
+  if (mapView === 'grid')  renderHeatmap();
+  if (mapView === 'photo') renderPhotoOverlay();
+  renderLegend();
+}
+
+function rangeLabel() {
+  const preset = document.getElementById('map-preset')?.value;
+  if (preset === 'all') return 'all time';
+  if (preset === '365') return 'this year';
+  if (preset === 'custom') return `${mapFrom} – ${mapTo}`;
+  return `last ${preset} days`;
+}
+
+function filterLogs() {
+  return logs.filter(l => l.activity === mapAct && l.date >= mapFrom && l.date <= mapTo);
+}
+
+function renderHeatmap() {
+  const container = document.getElementById('heatmap-view');
+  if (sections.length === 0) { container.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:20px">No sections configured. Go to Setup.</div>'; return; }
+
+  const rangedLogs = filterLogs();
+
+  // Build map: section -> rowNum -> [{date, person, notes}]
+  const rowEntries = {};
+  rangedLogs.forEach(l => {
+    if (!rowEntries[l.section]) rowEntries[l.section] = {};
+    (l.rows||[]).forEach(r => {
+      if (!rowEntries[l.section][r]) rowEntries[l.section][r] = [];
+      rowEntries[l.section][r].push({ date: l.date, person: l.person, notes: l.notes });
+    });
+  });
+
+  const color = ACT_COLORS[mapAct];
+  container.innerHTML = sections.map(sec => {
+    const secEntries = rowEntries[sec.name] || {};
+    const doneRows = Object.keys(secEntries).length;
+    const pct = sec.row_count > 0 ? Math.round(doneRows / sec.row_count * 100) : 0;
+
+    const cells = Array.from({length: sec.row_count}, (_, i) => {
+      const r = i + 1;
+      const entries = secEntries[r];
+      const isDone  = entries && entries.length > 0;
+      const count   = isDone ? entries.length : 0;
+      // Sort entries newest first for tooltip
+      const sorted  = isDone ? [...entries].sort((a,b) => b.date.localeCompare(a.date)) : [];
+      // Build tooltip data as JSON-safe string stored in data attr
+      const tipId   = `tip-${sec.name}-${r}`;
+      const cellStyle = isDone ? `data-act="${mapAct}" style="background:${color}"` : '';
+      const countBadge = count > 1 ? `<span class="rc-count">×${count}</span>` : '';
+      return `<div class="row-cell ${isDone?'done':''}" ${cellStyle}
+        id="${tipId}"
+        onmouseenter="showRowTip(event,'${sec.name}',${r})"
+        onmouseleave="hideTip()">${sec.name}-${r}${countBadge}</div>`;
+    }).join('');
+
+    return `<div class="heatmap-section">
+      <h3>Section ${sec.name}
+        <span class="heatmap-pct">${doneRows}/${sec.row_count} rows (${pct}%) — ${rangeLabel()}</span>
+      </h3>
+      <div class="row-cells">${cells}</div>
+    </div>`;
+  }).join('');
+
+  // Store entry data for tooltip lookup
+  window._rowEntries = rowEntries;
+}
+
+function showRowTip(e, sec, row) {
+  const tip = document.getElementById('row-cell-tip');
+  const entries = (window._rowEntries?.[sec]?.[row] || []).sort((a,b) => b.date.localeCompare(a.date));
+  if (entries.length === 0) {
+    tip.innerHTML = `<strong>${sec}-${row}</strong><br><span style="color:#94a3b8">Not done in this period</span>`;
+  } else {
+    const lines = entries.map(en => {
+      let s = en.date;
+      if (en.person) s += ` · ${en.person}`;
+      if (en.notes)  s += `<br><span style="color:#94a3b8;font-size:11px">${en.notes}</span>`;
+      return s;
+    }).join('<br>');
+    tip.innerHTML = `<strong>${sec}-${row}</strong> — ${entries.length}× ${ACT_LABELS[mapAct]}<br>${lines}`;
+  }
+  tip.style.display = 'block';
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top  = (e.clientY - 10) + 'px';
+}
+
+function hideTip() { document.getElementById('row-cell-tip').style.display = 'none'; }
+
+function renderLegend() {
+  const legend = document.getElementById('map-legend');
+  legend.innerHTML = `<span style="font-weight:600;color:#1e293b">Legend:</span>` +
+    `<span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:3px;background:${ACT_COLORS[mapAct]};display:inline-block"></span> ${ACT_LABELS[mapAct]} complete</span>` +
+    `<span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:14px;border-radius:3px;background:#f8fafc;border:1.5px solid #e2e8f0;display:inline-block"></span> Not done</span>`;
+}
+
+// Photo overlay
+function loadPhoto(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    photoDataUrl = e.target.result;
+    localStorage.setItem('orchard-photo', photoDataUrl);
+    showPhoto();
+  };
+  reader.readAsDataURL(file);
+}
+
+function showPhoto() {
+  if (!photoDataUrl) return;
+  document.getElementById('photo-drop').style.display = 'none';
+  const wrap = document.getElementById('photo-canvas-wrap');
+  wrap.style.display = 'inline-block';
+  const img = document.getElementById('overlay-img');
+  img.src = photoDataUrl;
+  img.onload = drawOverlay;
+  if (img.complete) drawOverlay();
+}
+
+function drawOverlay() {
+  const img    = document.getElementById('overlay-img');
+  const canvas = document.getElementById('overlay-canvas');
+  canvas.width  = img.offsetWidth;
+  canvas.height = img.offsetHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const seasonLogs = filterLogs();
+  const doneMap = {};
+  seasonLogs.forEach(l => {
+    if (!doneMap[l.section]) doneMap[l.section] = new Set();
+    (l.rows||[]).forEach(r => doneMap[l.section].add(r));
+  });
+
+  // Draw simple progress bars per section if we have them
+  // Since we don't have GPS coordinates, show a floating legend overlay
+  const color = ACT_COLORS[mapAct];
+  let y = 20;
+  sections.forEach(sec => {
+    const done = doneMap[sec.name] || new Set();
+    const pct  = sec.row_count > 0 ? done.size / sec.row_count : 0;
+    const barW = 160, barH = 22, x = canvas.width - barW - 20;
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.roundRect(x - 10, y - 4, barW + 14 + 60, barH + 8, 6); ctx.fill();
+    // Label
+    ctx.fillStyle = 'white'; ctx.font = 'bold 12px sans-serif'; ctx.textBaseline = 'middle';
+    ctx.fillText(`§${sec.name}`, x - 6, y + barH/2);
+    // Bar bg
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath(); ctx.roundRect(x + 22, y, barW, barH, 4); ctx.fill();
+    // Bar fill
+    ctx.fillStyle = color;
+    if (pct > 0) { ctx.beginPath(); ctx.roundRect(x + 22, y, barW * pct, barH, 4); ctx.fill(); }
+    // Pct text
+    ctx.fillStyle = 'white'; ctx.font = '11px sans-serif';
+    ctx.fillText(`${Math.round(pct*100)}%`, x + 22 + barW + 4, y + barH/2);
+    y += barH + 12;
+  });
+}
+
+function renderPhotoOverlay() {
+  if (photoDataUrl) showPhoto(); else { document.getElementById('photo-drop').style.display = 'block'; document.getElementById('photo-canvas-wrap').style.display = 'none'; }
+}
+
+// drag & drop on photo
+const photoView = document.getElementById('photo-view');
+photoView.addEventListener('dragover', e => e.preventDefault());
+photoView.addEventListener('drop', e => { e.preventDefault(); loadPhoto(e.dataTransfer.files[0]); });
+
+// ═══════════════════════════════════════
+// History page
+// ═══════════════════════════════════════
+function populateFilterSelects() {
+  const sel = document.getElementById('filter-section');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All sections</option>';
+  sections.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = `Section ${s.name}`; sel.appendChild(o); });
+  if (cur) sel.value = cur;
+}
+
+function renderHistory() {
+  const secF = document.getElementById('filter-section').value;
+  const actF = document.getElementById('filter-activity').value;
+  const perF = document.getElementById('filter-person').value.toLowerCase();
+  const filtered = logs.filter(l =>
+    (!secF || l.section === secF) &&
+    (!actF || l.activity === actF) &&
+    (!perF || (l.person||'').toLowerCase().includes(perF))
+  );
+  const tbody = document.getElementById('history-body');
+  const noH   = document.getElementById('no-history');
+  document.getElementById('history-count').textContent = filtered.length ? `${filtered.length} entries` : '';
+  if (!filtered.length) { tbody.innerHTML = ''; noH.style.display = 'block'; return; }
+  noH.style.display = 'none';
+  tbody.innerHTML = filtered.map(l => `
+    <tr>
+      <td style="white-space:nowrap">${l.date}</td>
+      <td><span class="badge badge-${l.activity}">${ACT_LABELS[l.activity]}</span></td>
+      <td style="font-weight:700">§${l.section}</td>
+      <td class="rows-cell">${formatRows(l.section, l.rows)}</td>
+      <td>${l.person||'<span style="color:#cbd5e1">—</span>'}</td>
+      <td style="color:#64748b;font-size:12px">${l.notes||''}</td>
+      <td><button class="del-btn" onclick="deleteLog(${l.id})" title="Delete">✕</button></td>
+    </tr>`).join('');
+}
+
+async function deleteLog(id) {
+  if (!confirm('Delete this entry?')) return;
+  setSyncState('syncing');
+  try {
+    await sbDelete('orchard_logs', { id: `eq.${id}` });
+    logs = logs.filter(l => l.id !== id);
+    setSyncState('ok');
+    renderHistory();
+  } catch(e) { setSyncState('error', 'Delete failed'); }
+}
+
+function formatRows(sec, rows) {
+  if (!rows || !rows.length) return '—';
+  const s = [...rows].sort((a,b)=>a-b);
+  const ranges = []; let start = s[0], end = s[0];
+  for (let i = 1; i < s.length; i++) {
+    if (s[i] === end + 1) end = s[i];
+    else { ranges.push(start===end ? `${sec}-${start}` : `${sec}-${start}–${end}`); start = end = s[i]; }
+  }
+  ranges.push(start===end ? `${sec}-${start}` : `${sec}-${start}–${end}`);
+  return ranges.join(', ');
+}
+
+function exportCSV() {
+  const rows = [['Date','Activity','Section','Rows','Person','Notes','Season']];
+  logs.forEach(l => rows.push([l.date, l.activity, l.section, formatRows(l.section, l.rows), l.person||'', l.notes||'', l.season||'']));
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download = 'orchard-log.csv'; a.click();
+}
+
+// ═══════════════════════════════════════
+// Setup page
+// ═══════════════════════════════════════
+function renderSetupList() {
+  const list = document.getElementById('sections-list');
+  if (!sections.length) { list.innerHTML = '<p style="color:#94a3b8;font-size:13px;margin-bottom:12px">No sections yet.</p>'; return; }
+  list.innerHTML = sections.map(s => `
+    <div class="setup-row">
+      <span class="sec-name">${s.name}</span>
+      <div style="display:flex;gap:10px;align-items:center;flex:1">
+        <div><label style="margin-bottom:3px">Rows</label>
+          <input type="number" value="${s.row_count}" min="0" max="500"
+            onchange="updateSection(${s.id},this.value)" style="width:80px"></div>
+      </div>
+      <button class="setup-del" onclick="deleteSection(${s.id},'${s.name}')" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+async function addSection() {
+  const name = document.getElementById('new-sec-name').value.trim().toUpperCase();
+  const rows = parseInt(document.getElementById('new-sec-rows').value) || 0;
+  if (!name) { alert('Enter a section letter.'); return; }
+  if (sections.find(s => s.name === name)) { alert(`Section ${name} already exists.`); return; }
+  setSyncState('syncing');
+  try {
+    await sbPost('orchard_sections', { name, row_count: rows, sort_order: sections.length });
+    sections = await sbGet('orchard_sections', { order: 'sort_order.asc,name.asc' });
+    setSyncState('ok');
+    document.getElementById('new-sec-name').value = '';
+    document.getElementById('new-sec-rows').value = '';
+    renderSetupList();
+    populateLogSelects();
+    showToast(`Section ${name} added`);
+  } catch(e) { setSyncState('error','Save failed'); }
+}
+
+async function updateSection(id, rows) {
+  setSyncState('syncing');
+  try {
+    await sbPatch('orchard_sections', { id: `eq.${id}` }, { row_count: parseInt(rows)||0, updated_at: new Date().toISOString() });
+    const sec = sections.find(s => s.id === id);
+    if (sec) sec.row_count = parseInt(rows)||0;
+    setSyncState('ok');
+    showToast('Section updated');
+    populateLogSelects();
+  } catch(e) { setSyncState('error','Save failed'); }
+}
+
+async function deleteSection(id, name) {
+  if (!confirm(`Remove Section ${name}? Logs will be kept.`)) return;
+  setSyncState('syncing');
+  try {
+    await sbDelete('orchard_sections', { id: `eq.${id}` });
+    sections = sections.filter(s => s.id !== id);
+    setSyncState('ok');
+    renderSetupList(); populateLogSelects();
+    showToast(`Section ${name} removed`);
+  } catch(e) { setSyncState('error','Delete failed'); }
+}
+
+// ═══════════════════════════════════════
+// Autocomplete
+// ═══════════════════════════════════════
+const VOLUNTEER_NAMES = ["Aaron Buttars","Aaron Casey","Aaron Hart Chambers","Aaron John Casey","Aidan Cyrus Mortensen","Allen Dowdle","Anita Thornock","Ardell Jenks","Ben Sparrow","Benard Stewart","Beverly Sorensen","Brad Slater","Brad Turner","Brent Eddy","Brent Weston","Brooklyn Buttars","Bruce Liston","Cash Daniels","Cathy Bell","Chet Nelson","Dallas Weston","Daniel Brown","David Ballingham","David Bell","David Nielsen","Dennin Anderson","Donald Minnoch","Duane Arave","Ed Douglas","Elder GroupX","Elena Marie Whitecar","Fenton Burgess","Fred Linford","Garett Fisher","Gary Sjoblom","George Mayfield","Halena Chadburn","Jack Hodson","Jason Caden Felt","Jayden Ivan Webb","Jayden Webb","Jeff Atkinson","Jessica Lea Toledo","Jim Hohosh","Joel Frederiksen","John Clark","Jordan Simmons","Joy Ballingham","Joyce Weston","Kaila Toledo","Karen Loveless","Kenneth John Hatch","Kirk Hibbard","Lane McPheeters","Larry Goodrich","Lynn Maycock","Madalynn Peterson","Marian DeVries","Marilyn Linford","Mason Wallace Noel","Michael Sorensen","Michael Thornock","Mike Loveless","Myrna Hodson","Nancy Murray","Opal Jenks","Paige Audrey Martini","Paige Martini","Paul Murray","Peyton Hassell","Peyton Lyle Hassell","Randy Colquitt","Rex Weston","Richard Burgess","Robert Wordell","Rod Adams","Ryan Shirts","Scott Giles","Shauna Liston","Sophie Smith","Steven Jackson","Susan Eddy","Sutton Bradley Henderson","Suzanne Arave","Tamara Carruth","Thomas Jesse Arndt","Travis James Cupp","Trey Webb","Ty Willey","Whitney Garcia"];
+let acIndex = -1;
+
+function acInput(input) {
+  const q = input.value.trim().toLowerCase();
+  const dd = document.getElementById('ac-dropdown');
+  acIndex = -1;
+  if (!q) { acHide(); return; }
+  const matches = [...new Set(VOLUNTEER_NAMES)].filter(n => n.toLowerCase().includes(q)).slice(0,12);
+  if (!matches.length) { acHide(); return; }
+  dd.innerHTML = matches.map((n,i) =>
+    `<div class="ac-item" data-i="${i}" onmousedown="acPick('${n.replace(/'/g,"\\'")}')">
+      ${n.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'), m => `<strong>${m}</strong>`)}</div>`
+  ).join('');
+  dd.style.display = 'block';
+}
+function acPick(name) { document.getElementById('log-person').value = name; acHide(); }
+function acHide() { document.getElementById('ac-dropdown').style.display = 'none'; acIndex = -1; }
+function acKey(e) {
+  const dd = document.getElementById('ac-dropdown');
+  const items = dd.querySelectorAll('.ac-item');
+  if (dd.style.display==='none'||!items.length) return;
+  if (e.key==='ArrowDown') { e.preventDefault(); acIndex=Math.min(acIndex+1,items.length-1); items.forEach((el,i)=>el.classList.toggle('ac-active',i===acIndex)); }
+  else if (e.key==='ArrowUp') { e.preventDefault(); acIndex=Math.max(acIndex-1,0); items.forEach((el,i)=>el.classList.toggle('ac-active',i===acIndex)); }
+  else if (e.key==='Enter'&&acIndex>=0) { e.preventDefault(); acPick(items[acIndex].textContent.trim()); }
+  else if (e.key==='Escape') acHide();
+}
+
+// ═══════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function showToast(msg, isErr) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2);transition:opacity 0.4s;white-space:nowrap'; document.body.appendChild(t); }
+  t.style.background = isErr ? '#dc2626' : '#1e3a2f';
+  t.style.color = 'white';
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(t._t); t._t = setTimeout(()=>t.style.opacity='0', 3000);
+}
+
+// ═══════════════════════════════════════
+// Init
+// ═══════════════════════════════════════
+document.getElementById('log-date').value = localToday();
+if (photoDataUrl) setTimeout(() => { if (mapView==='photo') showPhoto(); }, 500);
+loadAll();
+</script>
+</body>
+</html>
